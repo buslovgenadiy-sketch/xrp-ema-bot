@@ -111,8 +111,8 @@ def calculate_indicators(df):
 def analyze_signal(df):
 
     # Проверяем только закрытые свечи
-    prev = df.iloc[-3]
-    last = df.iloc[-2]
+    prev = df.iloc[-2]
+    last = df.iloc[-1]
 
     long_cross = (
         prev["ema20"] <= prev["ema50"]
@@ -267,7 +267,7 @@ def main():
 
             if signal:
 
-                signal_time = str(df.iloc[-2]["time"])
+                signal_time = str(df.iloc[-1]["time"])
 
                 if signal_time != last_signal_time:
 
