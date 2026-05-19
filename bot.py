@@ -1,4 +1,4 @@
-import os
+ import os
 import time
 import requests
 import pandas as pd
@@ -28,7 +28,9 @@ def send_message(text):
     }
 
     response = requests.post(url, data=data, timeout=10)
-    print("Telegram:", response.status_code, response.text)
+
+    print("Telegram:", response.status_code)
+    print(response.text)
 
 
 def get_candles():
@@ -61,11 +63,17 @@ def get_candles():
     )
 
     df["time"] = pd.to_datetime(df["time"].astype(int), unit="ms")
-    df["open"] = df["open"].astype(float)
-    df["high"] = df["high"].astype(float)
-    df["low"] = df["low"].astype(float)
-    df["close"] = df["close"].astype(float)
-    df["volume"] = df["volume"].astype(float)
+
+    numeric_columns = [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+    ]
+
+    for col in numeric_columns:
+        df[col] = df[col].astype(float)
 
     df = df.sort_values("time").reset_index(drop=True)
 
@@ -73,8 +81,15 @@ def get_candles():
 
 
 def calculate_indicators(df):
-    df["ema20"] = df["close"].ewm(span=EMA_FAST, adjust=False).mean()
-    df["ema50"] = df["close"].ewm(span=EMA_SLOW, adjust=False).mean()
+    df["ema20"] = df["close"].ewm(
+        span=EMA_FAST,
+        adjust=False
+    ).mean()
+
+    df["ema50"] = df["close"].ewm(
+        span=EMA_SLOW,
+        adjust=False
+    ).mean()
 
     df["volume_avg"] = df["volume"].rolling(20).mean()
 
@@ -82,36 +97,49 @@ def calculate_indicators(df):
     df["atr"] = df["tr"].rolling(14).mean()
 
     delta = df["close"].diff()
+
     gain = delta.where(delta > 0, 0).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
 
     rs = gain / loss
+
     df["rsi"] = 100 - (100 / (1 + rs))
 
     return df
 
 
 def analyze_signal(df):
+
+    # Проверяем только закрытые свечи
     prev = df.iloc[-3]
     last = df.iloc[-2]
 
-    long_cross = prev["ema20"] <= prev["ema50"] and last["ema20"] > last["ema50"]
-    short_cross = prev["ema20"] >= prev["ema50"] and last["ema20"] < last["ema50"]
+    long_cross = (
+        prev["ema20"] <= prev["ema50"]
+        and
+        last["ema20"] > last["ema50"]
+    )
+
+    short_cross = (
+        prev["ema20"] >= prev["ema50"]
+        and
+        last["ema20"] < last["ema50"]
+    )
 
     print("Проверка свечи:", last["time"])
-print("EMA20 предыдущая:", prev["ema20"])
-print("EMA50 предыдущая:", prev["ema50"])
-print("EMA20 последняя:", last["ema20"])
-print("EMA50 последняя:", last["ema50"])
+    print("EMA20 prev:", prev["ema20"])
+    print("EMA50 prev:", prev["ema50"])
+    print("EMA20 last:", last["ema20"])
+    print("EMA50 last:", last["ema50"])
 
-if long_cross:
-    print("Найдено пересечение LONG")
+    if long_cross:
+        print("Найден LONG")
 
-if short_cross:
-    print("Найдено пересечение SHORT")
+    if short_cross:
+        print("Найден SHORT")
 
-if not long_cross and not short_cross:
-    return None
+    if not long_cross and not short_cross:
+        return None
 
     signal_type = "LONG" if long_cross else "SHORT"
 
@@ -121,56 +149,71 @@ if not long_cross and not short_cross:
     ema_distance = abs(last["ema20"] - last["ema50"])
     atr = last["atr"]
 
+    # EMA distance
     if atr > 0 and ema_distance > atr * 0.1:
         score += 2
         reasons.append("EMA хорошо разошлись")
     else:
-        reasons.append("EMA слишком близко — движение слабое")
+        reasons.append("EMA слишком близко")
 
+    # Volume
     if last["volume"] > last["volume_avg"]:
         score += 2
         reasons.append("Объём выше среднего")
     else:
-        reasons.append("Объём слабый")
+        reasons.append("Слабый объём")
 
+    # Price vs EMA
     if signal_type == "LONG":
+
         if last["close"] > last["ema20"]:
             score += 2
-            reasons.append("Цена выше EMA 20")
+            reasons.append("Цена выше EMA20")
 
         if 45 <= last["rsi"] <= 70:
             score += 2
-            reasons.append(f"RSI нормальный: {round(last['rsi'], 1)}")
+            reasons.append(
+                f"RSI хороший: {round(last['rsi'], 1)}"
+            )
         else:
-            reasons.append(f"RSI неидеальный: {round(last['rsi'], 1)}")
+            reasons.append(
+                f"RSI слабый: {round(last['rsi'], 1)}"
+            )
 
-    if signal_type == "SHORT":
+    else:
+
         if last["close"] < last["ema20"]:
             score += 2
-            reasons.append("Цена ниже EMA 20")
+            reasons.append("Цена ниже EMA20")
 
         if 30 <= last["rsi"] <= 55:
             score += 2
-            reasons.append(f"RSI нормальный: {round(last['rsi'], 1)}")
+            reasons.append(
+                f"RSI хороший: {round(last['rsi'], 1)}"
+            )
         else:
-            reasons.append(f"RSI неидеальный: {round(last['rsi'], 1)}")
+            reasons.append(
+                f"RSI слабый: {round(last['rsi'], 1)}"
+            )
 
+    # Candle impulse
     candle_size = abs(last["close"] - last["open"])
 
     if atr > 0 and candle_size > atr * 0.3:
         score += 2
-        reasons.append("Свеча с нормальным импульсом")
+        reasons.append("Есть импульс")
     else:
-        reasons.append("Свеча маленькая, импульс слабый")
+        reasons.append("Импульс слабый")
 
+    # Advice
     if score >= 7:
-    advice = "✅ Вход возможен"
+        advice = "✅ Вход возможен"
 
-elif score >= 5:
-    advice = "⚠️ Сигнал средний, вход осторожно"
+    elif score >= 5:
+        advice = "⚠️ Вход осторожно"
 
-else:
-    advice = "❌ Сигнал слабый, лучше пропустить"
+    else:
+        advice = "❌ Лучше пропустить"
 
     emoji = "🟢" if signal_type == "LONG" else "🔴"
 
@@ -179,56 +222,74 @@ else:
 
 EMA 20 пересекла EMA 50
 
-Таймфрейм: <b>5 минут</b>
 Цена: <b>{last['close']}</b>
+Таймфрейм: <b>5m</b>
+
 Сила сигнала: <b>{score}/10</b>
 
 <b>Анализ:</b>
-- {reasons[0]}
-- {reasons[1]}
-- {reasons[2]}
-- {reasons[3]}
+
+• {reasons[0]}
+• {reasons[1]}
+• {reasons[2]}
+• {reasons[3]}
 
 <b>Совет:</b>
+
 {advice}
 
-Время свечи: {last['time']}
+Время:
+{last['time']}
 """
 
     return message
 
 
 def main():
-    print("Бот запущен. XRPUSDT 5m EMA 20/50")
 
-    send_message("✅ Бот запущен. Отслеживаю XRPUSDT 5m EMA 20/50")
+    print("Бот запущен")
+
+    send_message(
+        "✅ XRP EMA BOT запущен и отслеживает XRPUSDT 5m"
+    )
 
     last_signal_time = None
 
     while True:
+
         try:
+
             df = get_candles()
+
             df = calculate_indicators(df)
 
             signal = analyze_signal(df)
 
             if signal:
-                signal_time = str(df.iloc[-1]["time"])
+
+                signal_time = str(df.iloc[-2]["time"])
 
                 if signal_time != last_signal_time:
+
                     send_message(signal)
+
                     last_signal_time = signal_time
+
                     print("Сигнал отправлен")
+
                 else:
-                    print("Этот сигнал уже был отправлен")
+                    print("Сигнал уже отправлялся")
+
             else:
                 print("Пересечения нет")
 
         except Exception as e:
+
             print("Ошибка:", e)
 
         time.sleep(CHECK_SECONDS)
 
 
 if __name__ == "__main__":
-    main()
+    main()   
+                                
