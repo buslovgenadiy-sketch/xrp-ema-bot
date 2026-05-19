@@ -165,8 +165,10 @@ if not long_cross and not short_cross:
 
     if score >= 7:
     advice = "✅ Вход возможен"
+
 elif score >= 5:
     advice = "⚠️ Сигнал средний, вход осторожно"
+
 else:
     advice = "❌ Сигнал слабый, лучше пропустить"
 
