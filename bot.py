@@ -13,7 +13,7 @@ INTERVAL = "5"
 EMA_FAST = 20
 EMA_SLOW = 50
 
-CHECK_SECONDS = 60
+CHECK_SECONDS = 10
 
 BYBIT_URL = "https://api.bybit.com/v5/market/kline"
 
@@ -92,14 +92,26 @@ def calculate_indicators(df):
 
 
 def analyze_signal(df):
-    prev = df.iloc[-2]
-    last = df.iloc[-1]
+    prev = df.iloc[-3]
+    last = df.iloc[-2]
 
     long_cross = prev["ema20"] <= prev["ema50"] and last["ema20"] > last["ema50"]
     short_cross = prev["ema20"] >= prev["ema50"] and last["ema20"] < last["ema50"]
 
-    if not long_cross and not short_cross:
-        return None
+    print("Проверка свечи:", last["time"])
+print("EMA20 предыдущая:", prev["ema20"])
+print("EMA50 предыдущая:", prev["ema50"])
+print("EMA20 последняя:", last["ema20"])
+print("EMA50 последняя:", last["ema50"])
+
+if long_cross:
+    print("Найдено пересечение LONG")
+
+if short_cross:
+    print("Найдено пересечение SHORT")
+
+if not long_cross and not short_cross:
+    return None
 
     signal_type = "LONG" if long_cross else "SHORT"
 
@@ -152,11 +164,11 @@ def analyze_signal(df):
         reasons.append("Свеча маленькая, импульс слабый")
 
     if score >= 7:
-        advice = "✅ Вход возможен"
-    elif score >= 5:
-        advice = "⚠️ Сигнал средний, вход осторожно"
-    else:
-        advice = "❌ Лучше пропустить"
+    advice = "✅ Вход возможен"
+elif score >= 5:
+    advice = "⚠️ Сигнал средний, вход осторожно"
+else:
+    advice = "❌ Сигнал слабый, лучше пропустить"
 
     emoji = "🟢" if signal_type == "LONG" else "🔴"
 
