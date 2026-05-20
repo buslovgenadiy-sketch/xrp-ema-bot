@@ -1,4 +1,4 @@
-import os
+   import os
 import time
 import requests
 import pandas as pd
@@ -14,7 +14,7 @@ EMA_FAST = 20
 EMA_SLOW = 50
 
 CHECK_SECONDS = 20
-LOOKBACK_CANDLES = 3
+LOOKBACK_CANDLES = 6
 
 BYBIT_URL = "https://api.bybit.com/v5/market/kline"
 
@@ -31,7 +31,9 @@ def send_message(text):
     }
 
     response = requests.post(url, data=data, timeout=10)
-    print("Telegram:", response.status_code, response.text)
+
+    print("Telegram:", response.status_code)
+    print(response.text)
 
 
 def get_candles():
@@ -43,6 +45,7 @@ def get_candles():
     }
 
     response = requests.get(BYBIT_URL, params=params, timeout=10)
+
     try:
         data = response.json()
     except Exception:
@@ -51,7 +54,9 @@ def get_candles():
         return pd.DataFrame()
 
     if data.get("retCode") != 0:
-        raise Exception(data)
+        print("Ошибка Bybit:")
+        print(data)
+        return pd.DataFrame()
 
     df = pd.DataFrame(
         data["result"]["list"],
@@ -86,10 +91,12 @@ def calculate_indicators(df):
     df["atr"] = df["tr"].rolling(14).mean()
 
     delta = df["close"].diff()
+
     gain = delta.where(delta > 0, 0).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
 
     rs = gain / loss
+
     df["rsi"] = 100 - (100 / (1 + rs))
 
     return df
@@ -105,8 +112,15 @@ def find_last_cross(df):
         prev = recent.iloc[i - 1]
         last = recent.iloc[i]
 
-        long_cross = prev["ema20"] <= prev["ema50"] and last["ema20"] > last["ema50"]
-        short_cross = prev["ema20"] >= prev["ema50"] and last["ema20"] < last["ema50"]
+        long_cross = (
+            prev["ema20"] <= prev["ema50"]
+            and last["ema20"] > last["ema50"]
+        )
+
+        short_cross = (
+            prev["ema20"] >= prev["ema50"]
+            and last["ema20"] < last["ema50"]
+        )
 
         if long_cross:
             crosses.append({
@@ -154,6 +168,8 @@ def analyze_cross(cross):
         if last["close"] > last["ema20"]:
             score += 2
             reasons.append("Цена выше EMA20")
+        else:
+            reasons.append("Цена не выше EMA20")
 
         if 45 <= last["rsi"] <= 70:
             score += 2
@@ -165,6 +181,8 @@ def analyze_cross(cross):
         if last["close"] < last["ema20"]:
             score += 2
             reasons.append("Цена ниже EMA20")
+        else:
+            reasons.append("Цена не ниже EMA20")
 
         if 30 <= last["rsi"] <= 55:
             score += 2
@@ -218,30 +236,39 @@ def main():
     global last_sent_cross_time
 
     print("Бот запущен")
-    send_message("✅ XRP EMA BOT запущен. Ищу пересечения EMA20/EMA50 за последние 20 свечей.")
+
+    send_message(
+        "✅ XRP EMA BOT запущен. Ищу пересечения EMA20/EMA50."
+    )
 
     while True:
         try:
             df = get_candles()
+
             if df.empty:
-    print("Свечи не получены")
-    time.sleep(CHECK_SECONDS)
-    continue
+                print("Свечи не получены")
+                time.sleep(CHECK_SECONDS)
+                continue
+
             df = calculate_indicators(df)
 
             cross = find_last_cross(df)
 
             if cross is None:
-                print("Пересечений за последние свечи нет")
+                print("Пересечений нет")
 
             else:
                 print("Найдено пересечение:", cross["type"], cross["time"])
 
                 if cross["time"] != last_sent_cross_time:
                     message = analyze_cross(cross)
+
                     print("ОТПРАВЛЯЮ СИГНАЛ")
+
                     send_message(message)
+
                     last_sent_cross_time = cross["time"]
+
                     print("Сигнал отправлен")
                 else:
                     print("Это пересечение уже отправлялось")
@@ -253,7 +280,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main() 
+
     
-        
-        
+
+    
+    
