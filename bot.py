@@ -43,7 +43,12 @@ def get_candles():
     }
 
     response = requests.get(BYBIT_URL, params=params, timeout=10)
+    try:
     data = response.json()
+except Exception:
+    print("Bybit вернул не JSON:")
+    print(response.text[:500])
+    return pd.DataFrame()
 
     if data.get("retCode") != 0:
         raise Exception(data)
@@ -218,6 +223,10 @@ def main():
     while True:
         try:
             df = get_candles()
+            if df.empty:
+    print("Свечи не получены")
+    time.sleep(CHECK_SECONDS)
+    continue
             df = calculate_indicators(df)
 
             cross = find_last_cross(df)
