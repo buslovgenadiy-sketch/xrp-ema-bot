@@ -14,7 +14,7 @@ EMA_FAST = 20
 EMA_SLOW = 50
 
 CHECK_SECONDS = 20
-LOOKBACK_CANDLES = 20
+LOOKBACK_CANDLES = 3
 
 BYBIT_URL = "https://api.bybit.com/v5/market/kline"
 
