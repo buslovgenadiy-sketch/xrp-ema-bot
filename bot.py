@@ -267,18 +267,11 @@ def main():
 
             if signal:
 
-                signal_time = str(df.iloc[-1]["time"])
+    send_message(signal)
 
-                if signal_time != last_signal_time:
+    print("Сигнал отправлен")
 
-                    send_message(signal)
-
-                    last_signal_time = signal_time
-
-                    print("Сигнал отправлен")
-
-                else:
-                    print("Сигнал уже отправлялся")
+    time.sleep(300)
 
             else:
                 print("Пересечения нет")
