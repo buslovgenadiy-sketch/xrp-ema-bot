@@ -230,6 +230,7 @@ def main():
 
                 if cross["time"] != last_sent_cross_time:
                     message = analyze_cross(cross)
+                    print("ОТПРАВЛЯЮ СИГНАЛ")
                     send_message(message)
                     last_sent_cross_time = cross["time"]
                     print("Сигнал отправлен")
